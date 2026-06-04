@@ -1,0 +1,15 @@
+{
+
+  "rewrites": [
+
+    { "source": "/webhook", "destination": "/api/proxy?action=webhook" },
+
+    { "source": "/bot(.*)", "destination": "/api/proxy?action=bot&path=$1" },
+
+    { "source": "/health", "destination": "/api/proxy?action=health" },
+
+    { "source": "/", "destination": "/api/proxy?action=health" }
+
+  ]
+
+}
