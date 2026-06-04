@@ -1,14 +1,16 @@
 {
 
-  "rewrites": [
+  "version": 2,
 
-    { "source": "/webhook", "destination": "/api/proxy?action=webhook" },
+  "builds": [
 
-    { "source": "/bot(.*)", "destination": "/api/proxy?action=bot&path=$1" },
+    { "src": "index.js", "use": "@vercel/node" }
 
-    { "source": "/health", "destination": "/api/proxy?action=health" },
+  ],
 
-    { "source": "/", "destination": "/api/proxy?action=health" }
+  "routes": [
+
+    { "src": "/(.*)", "dest": "index.js" }
 
   ]
 
