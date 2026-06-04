@@ -1,11 +1,29 @@
 {
-  "name": "telegram-webhook-deskima",
+
+  "name": "deskima-telegram-proxy",
+
   "version": "1.0.0",
+
+  "private": true,
+
   "main": "index.js",
+
   "scripts": {
+
     "start": "node index.js"
+
   },
+
+  "engines": {
+
+    "node": ">=18"
+
+  },
+
   "dependencies": {
-    "express": "^5.1.0"
+
+    "express": "^4.21.2"
+
   }
+
 }
