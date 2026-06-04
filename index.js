@@ -1,48 +1,52 @@
-const express = require('express');
+const TELEGRAM_SECRET = 'x-telegram-bot-api-secret-token';
+
+const PROXY_SECRET = 'x-deskima-telegram-proxy-secret';
+
+const DEFAULT_ORIGIN = 'https://deskima.ir/api/v1/webhooks/messenger/telegram';
 
 
 
-const TELEGRAM_SECRET_HEADER = 'x-telegram-bot-api-secret-token';
+export default async function handler(req, res) {
 
-const PROXY_SECRET_HEADER = 'x-deskima-telegram-proxy-secret';
+  const url = new URL(req.url, `https://${req.headers.host}`);
 
-const DEFAULT_ORIGIN_WEBHOOK_URL =
-
-  'https://deskima.ir/api/v1/webhooks/messenger/telegram';
+  const path = url.pathname;
 
 
 
-const app = express();
+  if (path === '/' || path === '/health') {
 
-app.use(express.json({ limit: '2mb' }));
+    res.status(200).send('Telegram webhook running');
 
+    return;
 
-
-app.get(['/', '/health'], (_req, res) => {
-
-  res.type('text/plain').send('Telegram webhook running');
-
-});
+  }
 
 
 
-app.get('/webhook', (_req, res) => {
+  if (path === '/webhook') {
 
-  res.json({ ok: true, service: 'deskima-telegram-proxy', route: 'webhook' });
+    if (req.method === 'GET') {
 
-});
+      res.status(200).json({ ok: true, route: 'webhook' });
 
+      return;
 
-
-// تلگرام → deskima.ir
-
-app.post('/webhook', async (req, res) => {
-
-  const origin = process.env.ORIGIN_WEBHOOK_URL || DEFAULT_ORIGIN_WEBHOOK_URL;
+    }
 
 
 
-  try {
+    if (req.method !== 'POST') {
+
+      res.status(405).end();
+
+      return;
+
+    }
+
+
+
+    const origin = process.env.ORIGIN_WEBHOOK_URL || DEFAULT_ORIGIN;
 
     const headers = {
 
@@ -54,11 +58,9 @@ app.post('/webhook', async (req, res) => {
 
 
 
-    const telegramSecret = req.get(TELEGRAM_SECRET_HEADER);
+    if (req.headers[TELEGRAM_SECRET]) {
 
-    if (telegramSecret) {
-
-      headers['X-Telegram-Bot-Api-Secret-Token'] = telegramSecret;
+      headers['X-Telegram-Bot-Api-Secret-Token'] = req.headers[TELEGRAM_SECRET];
 
     }
 
@@ -78,31 +80,7 @@ app.post('/webhook', async (req, res) => {
 
     const text = await upstream.text();
 
-    res.status(upstream.status).type('application/json').send(text);
-
-  } catch (error) {
-
-    console.error('webhook forward failed', error);
-
-    res.status(502).json({ ok: false, error: 'Upstream webhook failed' });
-
-  }
-
-});
-
-
-
-// deskima.ir → api.telegram.org
-
-app.all(/^\/bot.*$/, async (req, res) => {
-
-  const proxySecret = process.env.PROXY_SECRET;
-
-
-
-  if (proxySecret && req.get(PROXY_SECRET_HEADER) !== proxySecret) {
-
-    res.status(401).send('Unauthorized');
+    res.status(upstream.status).setHeader('Content-Type', 'application/json').send(text);
 
     return;
 
@@ -110,25 +88,35 @@ app.all(/^\/bot.*$/, async (req, res) => {
 
 
 
-  const apiOrigin = (
+  if (path.startsWith('/bot')) {
 
-    process.env.TELEGRAM_API_ORIGIN || 'https://api.telegram.org'
+    if (process.env.PROXY_SECRET && req.headers[PROXY_SECRET] !== process.env.PROXY_SECRET) {
 
-  ).replace(/\/$/, '');
+      res.status(401).send('Unauthorized');
 
-  const target = `${apiOrigin}${req.originalUrl}`;
+      return;
 
-
-
-  try {
-
-    const headers = { 'Content-Type': 'application/json' };
-
-    const init = { method: req.method, headers };
+    }
 
 
 
-    if (!['GET', 'HEAD'].includes(req.method)) {
+    const apiOrigin = (process.env.TELEGRAM_API_ORIGIN || 'https://api.telegram.org').replace(/\/$/, '');
+
+    const target = `${apiOrigin}${path}${url.search}`;
+
+
+
+    const init = {
+
+      method: req.method,
+
+      headers: { 'Content-Type': 'application/json' },
+
+    };
+
+
+
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
 
       init.body = JSON.stringify(req.body ?? {});
 
@@ -140,26 +128,14 @@ app.all(/^\/bot.*$/, async (req, res) => {
 
     const text = await upstream.text();
 
+    res.status(upstream.status).setHeader('Content-Type', 'application/json').send(text);
 
-
-    res.status(upstream.status).type('application/json').send(text);
-
-  } catch (error) {
-
-    console.error('bot api forward failed', error);
-
-    res.status(502).json({ ok: false, error: 'Telegram API unreachable' });
+    return;
 
   }
 
-});
 
 
+  res.status(404).send('Not found');
 
-const port = Number(process.env.PORT || 3000);
-
-app.listen(port, () => {
-
-  console.log(`Deskima Telegram proxy listening on :${port}`);
-
-});
+}
